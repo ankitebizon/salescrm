@@ -1,0 +1,244 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users     User[]
+  contacts  Contact[]
+  accounts  Account[]
+  deals     Deal[]
+  activities Activity[]
+  pipelines  Pipeline[]
+  tags      Tag[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String   @id @default(cuid())
+  supabaseId     String   @unique @map("supabase_id")
+  email          String
+  name           String
+  avatarUrl      String?  @map("avatar_url")
+  role           UserRole @default(REP)
+  organizationId String   @map("organization_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  deals        Deal[]       @relation("DealOwner")
+  activities   Activity[]
+  contacts     Contact[]    @relation("ContactOwner")
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  REP
+}
+
+model Account {
+  id             String        @id @default(cuid())
+  name           String
+  website        String?
+  industry       String?
+  size           CompanySize?
+  annualRevenue  Float?        @map("annual_revenue")
+  phone          String?
+  address        String?
+  city           String?
+  country        String?
+  description    String?
+  organizationId String        @map("organization_id")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  contacts     Contact[]
+  deals        Deal[]
+  activities   Activity[]
+
+  @@map("accounts")
+}
+
+enum CompanySize {
+  STARTUP
+  SMALL
+  MEDIUM
+  LARGE
+  ENTERPRISE
+}
+
+model Contact {
+  id             String        @id @default(cuid())
+  firstName      String        @map("first_name")
+  lastName       String        @map("last_name")
+  email          String?
+  phone          String?
+  title          String?
+  avatarUrl      String?       @map("avatar_url")
+  status         ContactStatus @default(LEAD)
+  accountId      String?       @map("account_id")
+  ownerId        String        @map("owner_id")
+  organizationId String        @map("organization_id")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  account      Account?     @relation(fields: [accountId], references: [id])
+  owner        User         @relation("ContactOwner", fields: [ownerId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  deals        DealContact[]
+  activities   Activity[]
+  tags         ContactTag[]
+
+  @@map("contacts")
+}
+
+enum ContactStatus {
+  LEAD
+  PROSPECT
+  CUSTOMER
+  CHURNED
+}
+
+model Pipeline {
+  id             String   @id @default(cuid())
+  name           String
+  organizationId String   @map("organization_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  stages       PipelineStage[]
+  deals        Deal[]
+
+  @@map("pipelines")
+}
+
+model PipelineStage {
+  id         String   @id @default(cuid())
+  name       String
+  order      Int
+  color      String   @default("#6366f1")
+  probability Int     @default(50)
+  pipelineId String   @map("pipeline_id")
+
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id])
+  deals    Deal[]
+
+  @@map("pipeline_stages")
+}
+
+model Deal {
+  id             String      @id @default(cuid())
+  title          String
+  value          Float       @default(0)
+  currency       String      @default("USD")
+  status         DealStatus  @default(OPEN)
+  probability    Int         @default(50)
+  closeDate      DateTime?   @map("close_date")
+  description    String?
+  stageId        String      @map("stage_id")
+  pipelineId     String      @map("pipeline_id")
+  ownerId        String      @map("owner_id")
+  accountId      String?     @map("account_id")
+  organizationId String      @map("organization_id")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  stage        PipelineStage  @relation(fields: [stageId], references: [id])
+  pipeline     Pipeline       @relation(fields: [pipelineId], references: [id])
+  owner        User           @relation("DealOwner", fields: [ownerId], references: [id])
+  account      Account?       @relation(fields: [accountId], references: [id])
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  contacts     DealContact[]
+  activities   Activity[]
+
+  @@map("deals")
+}
+
+enum DealStatus {
+  OPEN
+  WON
+  LOST
+}
+
+model DealContact {
+  dealId    String @map("deal_id")
+  contactId String @map("contact_id")
+
+  deal    Deal    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([dealId, contactId])
+  @@map("deal_contacts")
+}
+
+model Activity {
+  id             String       @id @default(cuid())
+  type           ActivityType
+  title          String
+  description    String?
+  dueAt          DateTime?    @map("due_at")
+  completedAt    DateTime?    @map("completed_at")
+  userId         String       @map("user_id")
+  dealId         String?      @map("deal_id")
+  contactId      String?      @map("contact_id")
+  accountId      String?      @map("account_id")
+  organizationId String       @map("organization_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  user         User          @relation(fields: [userId], references: [id])
+  deal         Deal?         @relation(fields: [dealId], references: [id])
+  contact      Contact?      @relation(fields: [contactId], references: [id])
+  account      Account?      @relation(fields: [accountId], references: [id])
+  organization Organization  @relation(fields: [organizationId], references: [id])
+
+  @@map("activities")
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  NOTE
+  TASK
+}
+
+model Tag {
+  id             String @id @default(cuid())
+  name           String
+  color          String @default("#6366f1")
+  organizationId String @map("organization_id")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  contacts     ContactTag[]
+
+  @@unique([name, organizationId])
+  @@map("tags")
+}
+
+model ContactTag {
+  contactId String @map("contact_id")
+  tagId     String @map("tag_id")
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+  @@map("contact_tags")
+}
