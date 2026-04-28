@@ -1,17 +1,14 @@
-import Link from 'next/link'
-import { formatCurrency, formatDate } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
-import { ArrowRight } from 'lucide-react'
+'use client'
 
-const deals = [
-  { id: '1', title: 'Acme Corp Enterprise License', account: 'Acme Corp', value: 120000, stage: 'Negotiation', stageColor: '#fb923c', probability: 75, closeDate: new Date('2024-03-31'), owner: 'John Doe' },
-  { id: '2', title: 'TechCo Pro Annual', account: 'TechCo', value: 48000, stage: 'Proposal', stageColor: '#a78bfa', probability: 50, closeDate: new Date('2024-02-28'), owner: 'Mike Chen' },
-  { id: '3', title: 'Globex Starter Bundle', account: 'Globex Inc', value: 12000, stage: 'Qualified', stageColor: '#60a5fa', probability: 25, closeDate: new Date('2024-04-15'), owner: 'Lisa Park' },
-  { id: '4', title: 'Initech Growth Plan', account: 'Initech', value: 36000, stage: 'Proposal', stageColor: '#a78bfa', probability: 50, closeDate: new Date('2024-03-15'), owner: 'John Doe' },
-  { id: '5', title: 'Umbrella SaaS Suite', account: 'Umbrella Corp', value: 84000, stage: 'Lead', stageColor: '#94a3b8', probability: 10, closeDate: new Date('2024-05-30'), owner: 'Sarah Kim' },
-]
+import Link from 'next/link'
+import { ArrowRight, Loader2 } from 'lucide-react'
+import { formatCurrency, formatDate } from '@/lib/utils'
+import { useDeals } from '@/hooks/use-crm'
 
 export default function RecentDeals() {
+  const { data: deals = [], isLoading } = useDeals()
+  const dealsArr = Array.isArray(deals) ? deals.slice(0, 5) : []
+
   return (
     <div className="bg-card rounded-xl border border-border">
       <div className="flex items-center justify-between p-6 border-b border-border">
@@ -23,44 +20,54 @@ export default function RecentDeals() {
           View pipeline <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border">
-              {['Deal', 'Account', 'Value', 'Stage', 'Close Date', 'Owner'].map((col) => (
-                <th key={col} className="text-left text-xs font-medium text-muted-foreground px-6 py-3">{col}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {deals.map((deal, i) => (
-              <tr
-                key={deal.id}
-                className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors"
-              >
-                <td className="px-6 py-4">
-                  <Link href={`/dashboard/deals/${deal.id}`} className="font-medium text-sm hover:text-primary transition-colors">
-                    {deal.title}
-                  </Link>
-                </td>
-                <td className="px-6 py-4 text-sm text-muted-foreground">{deal.account}</td>
-                <td className="px-6 py-4 text-sm font-semibold">{formatCurrency(deal.value)}</td>
-                <td className="px-6 py-4">
-                  <span
-                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
-                    style={{ background: `${deal.stageColor}20`, color: deal.stageColor }}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: deal.stageColor }} />
-                    {deal.stage}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm text-muted-foreground">{formatDate(deal.closeDate)}</td>
-                <td className="px-6 py-4 text-sm text-muted-foreground">{deal.owner}</td>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-10 text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading...
+        </div>
+      ) : dealsArr.length === 0 ? (
+        <div className="text-center py-10 text-sm text-muted-foreground">No deals yet</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border">
+                {['Deal', 'Account', 'Value', 'Stage', 'Close Date', 'Owner'].map(col => (
+                  <th key={col} className="text-left text-xs font-medium text-muted-foreground px-6 py-3">{col}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {dealsArr.map((deal: any) => (
+                <tr key={deal.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
+                  <td className="px-6 py-4">
+                    <Link href={`/dashboard/deals/${deal.id}`} className="font-medium text-sm hover:text-primary transition-colors">
+                      {deal.title}
+                    </Link>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-muted-foreground">{deal.account?.name ?? '—'}</td>
+                  <td className="px-6 py-4 text-sm font-semibold">{formatCurrency(deal.value)}</td>
+                  <td className="px-6 py-4">
+                    {deal.stage ? (
+                      <span
+                        className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
+                        style={{ background: `${deal.stage.color}20`, color: deal.stage.color }}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: deal.stage.color }} />
+                        {deal.stage.name}
+                      </span>
+                    ) : '—'}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-muted-foreground">
+                    {deal.closeDate ? formatDate(deal.closeDate) : '—'}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-muted-foreground">{deal.owner?.name ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

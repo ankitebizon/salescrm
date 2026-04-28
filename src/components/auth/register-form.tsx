@@ -45,11 +45,34 @@ export default function RegisterForm() {
       })
       if (error) throw error
 
-      toast({
-        title: 'Account created!',
-        description: 'Please check your email to verify your account.',
-      })
-      router.push('/auth/login')
+      if (authData.user) {
+        // Create org + user in DB (works whether email confirmation is on or off)
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            supabaseId: authData.user.id,
+            name: data.name,
+            email: data.email,
+            organizationName: data.organizationName,
+          }),
+        })
+        if (!res.ok) {
+          console.error('Failed to create user record:', await res.text())
+        }
+      }
+
+      // If session is immediately available (email confirmation disabled), go to dashboard
+      if (authData.session) {
+        router.push('/dashboard')
+        router.refresh()
+      } else {
+        toast({
+          title: 'Account created!',
+          description: 'Please check your email to verify your account, then sign in.',
+        })
+        router.push('/auth/login')
+      }
     } catch (error: any) {
       toast({
         title: 'Registration failed',

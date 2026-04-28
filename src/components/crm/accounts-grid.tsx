@@ -1,22 +1,15 @@
 'use client'
 
-import { useState } from 'react'
-import { Search, Plus, Globe, Users, DollarSign, Building2 } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Search, Plus, Globe, Building2, Pencil, Trash2, Loader2, MoreHorizontal } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { formatCurrency } from '@/lib/utils'
-import { cn } from '@/lib/utils'
-
-const accounts = [
-  { id: '1', name: 'Acme Corp', website: 'acmecorp.com', industry: 'Technology', size: 'ENTERPRISE', annualRevenue: 50000000, contactCount: 8, dealCount: 3, totalValue: 340000 },
-  { id: '2', name: 'TechCo', website: 'techco.io', industry: 'SaaS', size: 'MEDIUM', annualRevenue: 12000000, contactCount: 4, dealCount: 2, totalValue: 84000 },
-  { id: '3', name: 'Globex Inc', website: 'globex.com', industry: 'Manufacturing', size: 'LARGE', annualRevenue: 80000000, contactCount: 6, dealCount: 1, totalValue: 12000 },
-  { id: '4', name: 'Initech', website: 'initech.com', industry: 'Finance', size: 'MEDIUM', annualRevenue: 25000000, contactCount: 3, dealCount: 2, totalValue: 92000 },
-  { id: '5', name: 'Umbrella Corp', website: 'umbrella.com', industry: 'Healthcare', size: 'ENTERPRISE', annualRevenue: 200000000, contactCount: 12, dealCount: 1, totalValue: 84000 },
-  { id: '6', name: 'Dharma Inc', website: 'dharma.co', industry: 'Research', size: 'SMALL', annualRevenue: 5000000, contactCount: 2, dealCount: 1, totalValue: 64000 },
-  { id: '7', name: 'Wayne Industries', website: 'wayne.com', industry: 'Conglomerate', size: 'ENTERPRISE', annualRevenue: 500000000, contactCount: 5, dealCount: 1, totalValue: 220000 },
-  { id: '8', name: 'Vandelay', website: 'vandelay.com', industry: 'Retail', size: 'SMALL', annualRevenue: 8000000, contactCount: 2, dealCount: 1, totalValue: 56000 },
-]
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useAccounts, useCreateAccount, useUpdateAccount, useDeleteAccount } from '@/hooks/use-crm'
+import { formatCurrency, cn } from '@/lib/utils'
+import { useToast } from '@/components/ui/use-toast'
 
 const sizeColors: Record<string, string> = {
   STARTUP: 'bg-slate-100 text-slate-600',
@@ -32,75 +25,298 @@ const industryColors: Record<string, string> = {
   Conglomerate: '#14b8a6', Retail: '#f97316',
 }
 
+const SIZES = ['STARTUP', 'SMALL', 'MEDIUM', 'LARGE', 'ENTERPRISE']
+
+type AccountForm = {
+  name: string
+  website: string
+  industry: string
+  size: string
+  annualRevenue: string
+  phone: string
+  description: string
+}
+
+const emptyForm: AccountForm = {
+  name: '', website: '', industry: '', size: 'SMALL',
+  annualRevenue: '', phone: '', description: '',
+}
+
+function AccountDialog({
+  open, onClose, initial, onSave, title, saving,
+}: {
+  open: boolean; onClose: () => void; initial: AccountForm
+  onSave: (data: AccountForm) => void; title: string; saving: boolean
+}) {
+  const [form, setForm] = useState<AccountForm>(initial)
+  useEffect(() => { setForm(initial) }, [initial, open])
+  const set = (f: keyof AccountForm, v: string) => setForm(p => ({ ...p, [f]: v }))
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-3 py-2">
+          <div className="space-y-1 col-span-2">
+            <Label>Company Name *</Label>
+            <Input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Acme Corp" />
+          </div>
+          <div className="space-y-1">
+            <Label>Website</Label>
+            <Input value={form.website} onChange={e => set('website', e.target.value)} placeholder="acmecorp.com" />
+          </div>
+          <div className="space-y-1">
+            <Label>Industry</Label>
+            <Input value={form.industry} onChange={e => set('industry', e.target.value)} placeholder="Technology" />
+          </div>
+          <div className="space-y-1">
+            <Label>Company Size</Label>
+            <Select value={form.size} onValueChange={v => set('size', v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {SIZES.map(s => <SelectItem key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>Annual Revenue ($)</Label>
+            <Input type="number" value={form.annualRevenue} onChange={e => set('annualRevenue', e.target.value)} placeholder="1000000" />
+          </div>
+          <div className="space-y-1 col-span-2">
+            <Label>Phone</Label>
+            <Input value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+1 555-0100" />
+          </div>
+          <div className="space-y-1 col-span-2">
+            <Label>Description</Label>
+            <Input value={form.description} onChange={e => set('description', e.target.value)} placeholder="Brief description" />
+          </div>
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={() => onSave(form)} disabled={saving || !form.name}>
+            {saving ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving...</> : 'Save'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function DeleteDialog({ open, onClose, onConfirm, name, deleting }: {
+  open: boolean; onClose: () => void; onConfirm: () => void; name: string; deleting: boolean
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Delete Account</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground py-2">
+          Delete <span className="font-medium text-foreground">{name}</span>? This cannot be undone.
+        </p>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose} disabled={deleting}>Cancel</Button>
+          <Button variant="destructive" onClick={onConfirm} disabled={deleting}>
+            {deleting ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Deleting...</> : 'Delete'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function AccountsGrid() {
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [createOpen, setCreateOpen] = useState(false)
+  const [editAccount, setEditAccount] = useState<any | null>(null)
+  const [deleteAccount, setDeleteAccount] = useState<any | null>(null)
+  const { toast } = useToast()
 
-  const filtered = accounts.filter((a) =>
-    !search || a.name.toLowerCase().includes(search.toLowerCase()) || a.industry.toLowerCase().includes(search.toLowerCase())
-  )
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(t)
+  }, [search])
+
+  const { data: accounts = [], isLoading } = useAccounts({ search: debouncedSearch || undefined })
+
+  const createMut = useCreateAccount()
+  const updateMut = useUpdateAccount()
+  const deleteMut = useDeleteAccount()
+
+  const handleCreate = useCallback(async (form: AccountForm) => {
+    try {
+      await createMut.mutateAsync({
+        ...form,
+        annualRevenue: form.annualRevenue ? parseFloat(form.annualRevenue) : undefined,
+      })
+      setCreateOpen(false)
+      toast({ title: 'Account created' })
+    } catch {
+      toast({ title: 'Failed to create account', variant: 'destructive' })
+    }
+  }, [createMut, toast])
+
+  const handleEdit = useCallback(async (form: AccountForm) => {
+    if (!editAccount) return
+    try {
+      await updateMut.mutateAsync({
+        id: editAccount.id,
+        data: { ...form, annualRevenue: form.annualRevenue ? parseFloat(form.annualRevenue) : undefined },
+      })
+      setEditAccount(null)
+      toast({ title: 'Account updated' })
+    } catch {
+      toast({ title: 'Failed to update account', variant: 'destructive' })
+    }
+  }, [editAccount, updateMut, toast])
+
+  const handleDelete = useCallback(async () => {
+    if (!deleteAccount) return
+    try {
+      await deleteMut.mutateAsync(deleteAccount.id)
+      setDeleteAccount(null)
+      toast({ title: 'Account deleted' })
+    } catch {
+      toast({ title: 'Failed to delete account', variant: 'destructive' })
+    }
+  }, [deleteAccount, deleteMut, toast])
+
+  const filtered = Array.isArray(accounts) ? accounts.filter((a: any) =>
+    !search || a.name.toLowerCase().includes(search.toLowerCase()) || (a.industry || '').toLowerCase().includes(search.toLowerCase())
+  ) : []
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Search accounts..." className="pl-9 h-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input placeholder="Search accounts..." className="pl-9 h-9" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <Button size="sm" className="gap-2 ml-auto">
+        <Button size="sm" className="gap-2 ml-auto" onClick={() => setCreateOpen(true)}>
           <Plus className="w-4 h-4" /> Add Account
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filtered.map((account) => {
-          const color = industryColors[account.industry] || '#6366f1'
-          return (
-            <div key={account.id} className="bg-card rounded-xl border border-border p-5 hover:border-primary/30 transition-all cursor-pointer group deal-card-shadow">
-              {/* Header */}
-              <div className="flex items-start gap-3 mb-4">
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0"
-                  style={{ background: `${color}20`, color }}
-                >
-                  {account.name[0]}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-16 text-muted-foreground">
+          <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading accounts...
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 text-muted-foreground text-sm">
+          {search ? 'No accounts match your search.' : 'No accounts yet. Add your first account!'}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filtered.map((account: any) => {
+            const color = industryColors[account.industry] || '#6366f1'
+            const contactCount = account._count?.contacts ?? 0
+            const dealCount = account._count?.deals ?? 0
+            const totalValue = (account.deals ?? []).reduce((s: number, d: any) => s + (d.value ?? 0), 0)
+
+            return (
+              <div
+                key={account.id}
+                className="bg-card rounded-xl border border-border p-5 hover:border-primary/30 transition-all deal-card-shadow group"
+              >
+                {/* Header */}
+                <div className="flex items-start gap-3 mb-4">
+                  <div
+                    className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0"
+                    style={{ background: `${color}20`, color }}
+                  >
+                    {account.name[0].toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-sm group-hover:text-primary transition-colors">{account.name}</p>
+                    {account.website && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <Globe className="w-3 h-3 text-muted-foreground/60" />
+                        <span className="text-xs text-muted-foreground truncate">{account.website}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    <button
+                      className="p-1 rounded hover:bg-muted"
+                      onClick={() => setEditAccount(account)}
+                      title="Edit"
+                    >
+                      <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                    </button>
+                    <button
+                      className="p-1 rounded hover:bg-destructive/10"
+                      onClick={() => setDeleteAccount(account)}
+                      title="Delete"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                    </button>
+                  </div>
+                  {account.size && (
+                    <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium shrink-0', sizeColors[account.size] ?? 'bg-muted text-muted-foreground')}>
+                      {account.size}
+                    </span>
+                  )}
                 </div>
-                <div className="min-w-0">
-                  <p className="font-semibold text-sm group-hover:text-primary transition-colors">{account.name}</p>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <Globe className="w-3 h-3 text-muted-foreground/60" />
-                    <span className="text-xs text-muted-foreground">{account.website}</span>
+
+                {account.industry && (
+                  <div className="flex items-center gap-1.5 mb-4">
+                    <Building2 className="w-3.5 h-3.5" style={{ color }} />
+                    <span className="text-xs font-medium" style={{ color }}>{account.industry}</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-3 gap-2 pt-4 border-t border-border">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">Pipeline</p>
+                    <p className="text-sm font-bold">{formatCurrency(totalValue)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">Contacts</p>
+                    <p className="text-sm font-bold">{contactCount}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">Deals</p>
+                    <p className="text-sm font-bold">{dealCount}</p>
                   </div>
                 </div>
-                <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium ml-auto shrink-0', sizeColors[account.size ?? 'SMALL'])}>
-                  {account.size}
-                </span>
               </div>
+            )
+          })}
+        </div>
+      )}
 
-              {/* Industry */}
-              <div className="flex items-center gap-1.5 mb-4">
-                <Building2 className="w-3.5 h-3.5" style={{ color }} />
-                <span className="text-xs font-medium" style={{ color }}>{account.industry}</span>
-              </div>
+      <AccountDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        initial={emptyForm}
+        onSave={handleCreate}
+        title="Add Account"
+        saving={createMut.isPending}
+      />
 
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-2 pt-4 border-t border-border">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Pipeline</p>
-                  <p className="text-sm font-bold">{formatCurrency(account.totalValue)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Contacts</p>
-                  <p className="text-sm font-bold">{account.contactCount}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Deals</p>
-                  <p className="text-sm font-bold">{account.dealCount}</p>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+      <AccountDialog
+        open={!!editAccount}
+        onClose={() => setEditAccount(null)}
+        initial={editAccount ? {
+          name: editAccount.name,
+          website: editAccount.website ?? '',
+          industry: editAccount.industry ?? '',
+          size: editAccount.size ?? 'SMALL',
+          annualRevenue: editAccount.annualRevenue?.toString() ?? '',
+          phone: editAccount.phone ?? '',
+          description: editAccount.description ?? '',
+        } : emptyForm}
+        onSave={handleEdit}
+        title="Edit Account"
+        saving={updateMut.isPending}
+      />
+
+      <DeleteDialog
+        open={!!deleteAccount}
+        onClose={() => setDeleteAccount(null)}
+        onConfirm={handleDelete}
+        name={deleteAccount?.name ?? ''}
+        deleting={deleteMut.isPending}
+      />
     </div>
   )
 }

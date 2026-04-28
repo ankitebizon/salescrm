@@ -1,13 +1,9 @@
-import { Phone, Mail, Users, FileText, CheckSquare, Clock } from 'lucide-react'
-import { cn, formatRelative } from '@/lib/utils'
+'use client'
 
-const activities = [
-  { type: 'CALL', title: 'Called Sarah Johnson', deal: 'Acme Corp - Enterprise', time: new Date(Date.now() - 1000 * 60 * 12), user: 'You' },
-  { type: 'EMAIL', title: 'Sent proposal to TechCo', deal: 'TechCo - Pro Plan', time: new Date(Date.now() - 1000 * 60 * 45), user: 'Mike Chen' },
-  { type: 'MEETING', title: 'Demo with Globex team', deal: 'Globex - Starter', time: new Date(Date.now() - 1000 * 60 * 120), user: 'You' },
-  { type: 'NOTE', title: 'Updated deal notes', deal: 'Initech - Growth', time: new Date(Date.now() - 1000 * 60 * 200), user: 'Lisa Park' },
-  { type: 'TASK', title: 'Follow up on contract', deal: 'Umbrella Corp', time: new Date(Date.now() - 1000 * 60 * 60 * 5), user: 'You' },
-]
+import { Phone, Mail, Users, FileText, CheckSquare, Clock, Loader2 } from 'lucide-react'
+import Link from 'next/link'
+import { cn, formatRelative } from '@/lib/utils'
+import { useActivities } from '@/hooks/use-crm'
 
 const icons: Record<string, any> = {
   CALL: { icon: Phone, color: 'bg-blue-100 text-blue-600' },
@@ -18,32 +14,47 @@ const icons: Record<string, any> = {
 }
 
 export default function ActivityFeed() {
+  const { data: allActivities = [], isLoading } = useActivities()
+  const activities = (Array.isArray(allActivities) ? allActivities : []).slice(0, 8)
+
   return (
     <div className="bg-card rounded-xl border border-border p-6 h-full">
       <div className="flex items-center justify-between mb-5">
         <h2 className="font-semibold text-base">Recent Activity</h2>
-        <button className="text-xs text-primary hover:underline">View all</button>
+        <Link href="/dashboard/activities" className="text-xs text-primary hover:underline">View all</Link>
       </div>
-      <div className="space-y-4">
-        {activities.map((activity, i) => {
-          const { icon: Icon, color } = icons[activity.type]
-          return (
-            <div key={i} className="flex gap-3 group">
-              <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5', color)}>
-                <Icon className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-medium truncate">{activity.title}</p>
-                <p className="text-xs text-muted-foreground truncate">{activity.deal}</p>
-                <div className="flex items-center gap-1 mt-0.5">
-                  <Clock className="w-3 h-3 text-muted-foreground/60" />
-                  <span className="text-xs text-muted-foreground/60">{formatRelative(activity.time)}</span>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8 text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading...
+        </div>
+      ) : activities.length === 0 ? (
+        <div className="text-center py-8 text-sm text-muted-foreground">No activities yet</div>
+      ) : (
+        <div className="space-y-4">
+          {activities.map((activity: any, i: number) => {
+            const cfg = icons[activity.type] ?? icons.NOTE
+            const Icon = cfg.icon
+            return (
+              <div key={activity.id} className="flex gap-3">
+                <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5', cfg.color)}>
+                  <Icon className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{activity.title}</p>
+                  {activity.deal && (
+                    <p className="text-xs text-muted-foreground truncate">{activity.deal.title}</p>
+                  )}
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <Clock className="w-3 h-3 text-muted-foreground/60" />
+                    <span className="text-xs text-muted-foreground/60">{formatRelative(activity.createdAt)}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
