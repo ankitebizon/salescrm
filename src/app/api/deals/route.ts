@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
         stage: true,
         owner: { select: { id: true, name: true, avatarUrl: true } },
         account: { select: { id: true, name: true } },
-        contacts: { select: { id: true, firstName: true, lastName: true } },
+        contacts: { include: { contact: { select: { id: true, firstName: true, lastName: true } } } },
       },
       orderBy: [{ stage: { order: 'asc' } }, { createdAt: 'desc' }],
     })
