@@ -6,11 +6,11 @@ import prisma from '@/lib/prisma'
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export async function GET() {
-  const supabase = createServerClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   try {
+    const supabase = createServerClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const user = await prisma.user.findUnique({ where: { supabaseId: session.user.id } })
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 

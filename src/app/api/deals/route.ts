@@ -4,15 +4,15 @@ import { createServerClient } from '@/lib/supabase'
 import prisma from '@/lib/prisma'
 
 export async function GET(request: NextRequest) {
-  const supabase = createServerClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { searchParams } = new URL(request.url)
-  const pipelineId = searchParams.get('pipelineId')
-  const status = searchParams.get('status')
-
   try {
+    const supabase = createServerClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const { searchParams } = new URL(request.url)
+    const pipelineId = searchParams.get('pipelineId')
+    const status = searchParams.get('status')
+
     const user = await prisma.user.findUnique({ where: { supabaseId: session.user.id } })
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
@@ -33,16 +33,17 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(deals)
   } catch (error) {
+    console.error('[/api/deals GET]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = createServerClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   try {
+    const supabase = createServerClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const body = await request.json()
     const user = await prisma.user.findUnique({ where: { supabaseId: session.user.id } })
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
@@ -59,6 +60,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(deal, { status: 201 })
   } catch (error) {
+    console.error('[/api/deals POST]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
