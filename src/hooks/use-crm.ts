@@ -1,11 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
+const QUERY_DEFAULTS = {
+  staleTime: 300000,
+  gcTime: 600000,
+  refetchOnWindowFocus: false,
+  refetchOnMount: false,
+}
+
 // ── Deals ──────────────────────────────────────────────────────
 export function useDeals(params?: { pipelineId?: string; status?: string }) {
   const query = new URLSearchParams(params as any).toString()
   return useQuery({
     queryKey: ['deals', params],
     queryFn: () => fetch(`/api/deals?${query}`).then(r => r.json()),
+    ...QUERY_DEFAULTS,
   })
 }
 
@@ -14,6 +22,7 @@ export function useDeal(id: string) {
     queryKey: ['deals', id],
     queryFn: () => fetch(`/api/deals/${id}`).then(r => r.json()),
     enabled: !!id,
+    ...QUERY_DEFAULTS,
   })
 }
 
@@ -26,7 +35,21 @@ export function useCreateDeal() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       }).then(r => r.json()),
-    onSuccess: () => {
+    onMutate: async (newDeal) => {
+      await queryClient.cancelQueries({ queryKey: ['deals'] })
+      const previousQueries = queryClient.getQueriesData<any[]>({ queryKey: ['deals'] })
+      queryClient.setQueriesData({ queryKey: ['deals'] }, (old: any) => {
+        if (!Array.isArray(old)) return old
+        return [{ id: `temp-${Date.now()}`, ...newDeal, createdAt: new Date().toISOString() }, ...old]
+      })
+      return { previousQueries }
+    },
+    onError: (_err, _vars, context) => {
+      context?.previousQueries.forEach(([queryKey, data]) => {
+        queryClient.setQueryData(queryKey, data)
+      })
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['deals'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
     },
@@ -70,6 +93,7 @@ export function useContacts(params?: { search?: string; status?: string }) {
   return useQuery({
     queryKey: ['contacts', params],
     queryFn: () => fetch(`/api/contacts?${query}`).then(r => r.json()),
+    ...QUERY_DEFAULTS,
   })
 }
 
@@ -82,7 +106,22 @@ export function useCreateContact() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       }).then(r => r.json()),
-    onSuccess: () => {
+    onMutate: async (newContact) => {
+      await queryClient.cancelQueries({ queryKey: ['contacts'] })
+      const previousQueries = queryClient.getQueriesData<{ contacts: any[]; total: number }>({ queryKey: ['contacts'] })
+      queryClient.setQueriesData({ queryKey: ['contacts'] }, (old: any) => {
+        if (!old?.contacts) return old
+        const optimistic = { id: `temp-${Date.now()}`, ...newContact, createdAt: new Date().toISOString() }
+        return { ...old, contacts: [optimistic, ...old.contacts], total: old.total + 1 }
+      })
+      return { previousQueries }
+    },
+    onError: (_err, _vars, context) => {
+      context?.previousQueries.forEach(([queryKey, data]) => {
+        queryClient.setQueryData(queryKey, data)
+      })
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] })
     },
   })
@@ -122,6 +161,7 @@ export function useAccounts(params?: { search?: string }) {
   return useQuery({
     queryKey: ['accounts', params],
     queryFn: () => fetch(`/api/accounts?${query}`).then(r => r.json()),
+    ...QUERY_DEFAULTS,
   })
 }
 
@@ -134,7 +174,21 @@ export function useCreateAccount() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       }).then(r => r.json()),
-    onSuccess: () => {
+    onMutate: async (newAccount) => {
+      await queryClient.cancelQueries({ queryKey: ['accounts'] })
+      const previousQueries = queryClient.getQueriesData<any[]>({ queryKey: ['accounts'] })
+      queryClient.setQueriesData({ queryKey: ['accounts'] }, (old: any) => {
+        if (!Array.isArray(old)) return old
+        return [{ id: `temp-${Date.now()}`, ...newAccount, createdAt: new Date().toISOString() }, ...old]
+      })
+      return { previousQueries }
+    },
+    onError: (_err, _vars, context) => {
+      context?.previousQueries.forEach(([queryKey, data]) => {
+        queryClient.setQueryData(queryKey, data)
+      })
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts'] })
     },
   })
@@ -176,6 +230,7 @@ export function useActivities(params?: { dealId?: string; contactId?: string; co
   return useQuery({
     queryKey: ['activities', params],
     queryFn: () => fetch(`/api/activities?${query}`).then(r => r.json()),
+    ...QUERY_DEFAULTS,
   })
 }
 
@@ -226,6 +281,7 @@ export function usePipelines() {
   return useQuery({
     queryKey: ['pipelines'],
     queryFn: () => fetch('/api/pipelines').then(r => r.json()),
+    ...QUERY_DEFAULTS,
   })
 }
 
@@ -234,6 +290,6 @@ export function useDashboardStats() {
   return useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: () => fetch('/api/dashboard/stats').then(r => r.json()),
-    staleTime: 5 * 60 * 1000,
+    ...QUERY_DEFAULTS,
   })
 }
