@@ -196,10 +196,15 @@ export default function PipelineBoard() {
     if (!dealId || fromStageId === toStageId) return
 
     const stage = pipeline?.stages?.find((s: any) => s.id === toStageId)
+    const stageName = (stage?.name ?? '').toLowerCase()
+    const isWon = stageName.includes('won')
+    const isLost = stageName.includes('lost')
+    const status = isWon ? 'WON' : isLost ? 'LOST' : 'OPEN'
+    const closeDate = (isWon || isLost) ? new Date().toISOString() : null
     try {
       await updateMut.mutateAsync({
         id: dealId,
-        data: { stageId: toStageId, probability: stage?.probability },
+        data: { stageId: toStageId, probability: stage?.probability, status, closeDate },
       })
     } catch {
       toast({ title: 'Failed to move deal', variant: 'destructive' })

@@ -48,7 +48,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
     await prisma.deal.updateMany({
       where: { id: params.id, organizationId: user.organizationId },
-      data: { ...body, closeDate: body.closeDate ? new Date(body.closeDate) : undefined, updatedAt: new Date() },
+      data: { ...body, closeDate: body.closeDate === undefined ? undefined : body.closeDate ? new Date(body.closeDate) : null, updatedAt: new Date() },
     })
 
     return NextResponse.json({ success: true })
