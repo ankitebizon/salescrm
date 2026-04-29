@@ -8,24 +8,13 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
+import { useDashboardStats } from '@/hooks/use-crm'
 
-const data = [
-  { month: 'Jan', revenue: 65000, target: 80000 },
-  { month: 'Feb', revenue: 72000, target: 80000 },
-  { month: 'Mar', revenue: 88000, target: 85000 },
-  { month: 'Apr', revenue: 75000, target: 85000 },
-  { month: 'May', revenue: 92000, target: 90000 },
-  { month: 'Jun', revenue: 105000, target: 90000 },
-  { month: 'Jul', revenue: 98000, target: 95000 },
-  { month: 'Aug', revenue: 112000, target: 100000 },
-  { month: 'Sep', revenue: 124000, target: 110000 },
-  { month: 'Oct', revenue: 118000, target: 115000 },
-  { month: 'Nov', revenue: 135000, target: 120000 },
-  { month: 'Dec', revenue: 142000, target: 125000 },
-]
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+// Monthly targets — configure these to match your org's sales goals
+const MONTHLY_TARGETS = [80000, 80000, 85000, 85000, 90000, 90000, 95000, 100000, 110000, 115000, 120000, 125000]
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload?.length) {
@@ -46,6 +35,14 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 }
 
 export default function RevenueChart() {
+  const { data: stats } = useDashboardStats()
+
+  const data = MONTH_LABELS.map((month, i) => ({
+    month,
+    revenue: stats?.revenueByMonth?.[i] ?? 0,
+    target: MONTHLY_TARGETS[i],
+  }))
+
   return (
     <div className="bg-card rounded-xl border border-border p-6">
       <div className="flex items-center justify-between mb-6">

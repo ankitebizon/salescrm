@@ -15,42 +15,50 @@ export async function GET(request: NextRequest) {
     const orgId = user.organizationId
     const now = new Date()
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const startOfYear = new Date(now.getFullYear(), 0, 1)
 
-    const WON_STATUSES = ['WON', 'closed_won', 'Closed Won', 'CLOSED_WON']
-    const LOST_STATUSES = ['LOST', 'closed_lost', 'Closed Lost', 'CLOSED_LOST']
-    const OPEN_STATUSES = ['OPEN', 'open', 'Open']
-
-    const [totalDeals, wonDealsThisMonth, openDeals, allDeals] = await Promise.all([
+    const [totalDeals, wonDealsThisMonth, openDeals, allDeals, wonDealsThisYear] = await Promise.all([
       prisma.deal.count({ where: { organizationId: orgId } }),
       prisma.deal.findMany({
         where: {
           organizationId: orgId,
-          status: { in: WON_STATUSES as any[] },
+          status: 'WON',
           closeDate: { gte: startOfMonth },
         },
-        select: { value: true, status: true, closeDate: true },
+        select: { value: true },
       }),
       prisma.deal.findMany({
-        where: { organizationId: orgId, status: { in: OPEN_STATUSES as any[] } },
+        where: { organizationId: orgId, status: 'OPEN' },
         select: { value: true },
       }),
       prisma.deal.findMany({
         where: { organizationId: orgId },
         select: { value: true, status: true },
       }),
+      prisma.deal.findMany({
+        where: {
+          organizationId: orgId,
+          status: 'WON',
+          closeDate: { gte: startOfYear },
+        },
+        select: { value: true, closeDate: true },
+      }),
     ])
-
-    console.log('[dashboard/stats] wonDealsThisMonth raw:', JSON.stringify(wonDealsThisMonth))
-    console.log('[dashboard/stats] allDeals statuses:', allDeals.map(d => d.status))
 
     const wonValue = wonDealsThisMonth.reduce((s, d) => s + d.value, 0)
     const openValue = openDeals.reduce((s, d) => s + d.value, 0)
     const totalValue = allDeals.reduce((s, d) => s + d.value, 0)
-    const wonCount = allDeals.filter(d => WON_STATUSES.includes(d.status as string)).length
-    const lostCount = allDeals.filter(d => LOST_STATUSES.includes(d.status as string)).length
+    const wonCount = allDeals.filter(d => d.status === 'WON').length
+    const lostCount = allDeals.filter(d => d.status === 'LOST').length
     const closedCount = wonCount + lostCount
     const conversionRate = closedCount > 0 ? Math.round((wonCount / closedCount) * 100) : 0
     const avgDealSize = totalDeals > 0 ? totalValue / totalDeals : 0
+
+    const revenueByMonth = Array.from({ length: 12 }, (_, i) =>
+      wonDealsThisYear
+        .filter(d => d.closeDate && new Date(d.closeDate).getMonth() === i)
+        .reduce((s, d) => s + d.value, 0)
+    )
 
     return NextResponse.json({
       totalDeals,
@@ -61,6 +69,7 @@ export async function GET(request: NextRequest) {
       openValue,
       conversionRate,
       avgDealSize,
+      revenueByMonth,
     })
   } catch (error) {
     console.error('[/api/dashboard/stats GET]', error)
