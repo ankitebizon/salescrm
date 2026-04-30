@@ -3,6 +3,34 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import prisma from '@/lib/prisma'
 
+export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const supabase = createServerClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const user = await prisma.user.findUnique({ where: { supabaseId: session.user.id } })
+    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+
+    const account = await prisma.account.findFirst({
+      where: { id: params.id, organizationId: user.organizationId },
+      include: {
+        contacts: {
+          select: { id: true, firstName: true, lastName: true, email: true, title: true, status: true },
+          orderBy: { firstName: 'asc' },
+        },
+        _count: { select: { contacts: true, deals: true } },
+      },
+    })
+
+    if (!account) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return NextResponse.json(account)
+  } catch (error) {
+    console.error('[/api/accounts/:id GET]', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const supabase = createServerClient()

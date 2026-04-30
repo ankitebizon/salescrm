@@ -1,14 +1,15 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Plus, Globe, Building2, Pencil, Trash2, Loader2, MoreHorizontal } from 'lucide-react'
+import { Search, Plus, Globe, Building2, Pencil, Trash2, Loader2, Users, Mail } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useAccounts, useCreateAccount, useUpdateAccount, useDeleteAccount } from '@/hooks/use-crm'
-import { formatCurrency, cn } from '@/lib/utils'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { useAccounts, useAccount, useCreateAccount, useUpdateAccount, useDeleteAccount } from '@/hooks/use-crm'
+import { formatCurrency, cn, getInitials } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 
 const sizeColors: Record<string, string> = {
@@ -102,6 +103,72 @@ function AccountDialog({
   )
 }
 
+const contactStatusConfig: Record<string, { label: string; className: string }> = {
+  LEAD: { label: 'Lead', className: 'bg-slate-100 text-slate-700' },
+  PROSPECT: { label: 'Prospect', className: 'bg-blue-100 text-blue-700' },
+  CUSTOMER: { label: 'Customer', className: 'bg-emerald-100 text-emerald-700' },
+  CHURNED: { label: 'Churned', className: 'bg-red-100 text-red-700' },
+}
+
+function AccountContactsDialog({ accountId, onClose }: { accountId: string; onClose: () => void }) {
+  const { data: account, isLoading } = useAccount(accountId)
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Users className="w-4 h-4" />
+            {account?.name ?? 'Account'} — Contacts
+          </DialogTitle>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-10 text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading...
+          </div>
+        ) : !account?.contacts?.length ? (
+          <p className="text-sm text-muted-foreground text-center py-10">
+            No contacts linked to this account yet.
+          </p>
+        ) : (
+          <div className="divide-y divide-border max-h-96 overflow-y-auto">
+            {account.contacts.map((c: any) => {
+              const cfg = contactStatusConfig[c.status] ?? contactStatusConfig.LEAD
+              return (
+                <div key={c.id} className="flex items-center gap-3 py-3">
+                  <Avatar className="w-8 h-8 shrink-0">
+                    <AvatarFallback className="text-xs font-semibold bg-violet-100 text-violet-700">
+                      {getInitials(`${c.firstName} ${c.lastName}`)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">{c.firstName} {c.lastName}</p>
+                    {c.email && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <Mail className="w-3 h-3 text-muted-foreground/60" />
+                        <span className="text-xs text-muted-foreground truncate">{c.email}</span>
+                      </div>
+                    )}
+                    {c.title && <p className="text-xs text-muted-foreground">{c.title}</p>}
+                  </div>
+                  <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full shrink-0', cfg.className)}>
+                    {cfg.label}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function DeleteDialog({ open, onClose, onConfirm, name, deleting }: {
   open: boolean; onClose: () => void; onConfirm: () => void; name: string; deleting: boolean
 }) {
@@ -129,6 +196,7 @@ export default function AccountsGrid() {
   const [createOpen, setCreateOpen] = useState(false)
   const [editAccount, setEditAccount] = useState<any | null>(null)
   const [deleteAccount, setDeleteAccount] = useState<any | null>(null)
+  const [contactsAccountId, setContactsAccountId] = useState<string | null>(null)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -215,7 +283,7 @@ export default function AccountsGrid() {
             return (
               <div
                 key={account.id}
-                className="bg-card rounded-xl border border-border p-5 hover:border-primary/30 transition-all deal-card-shadow group"
+                className="bg-card rounded-xl border border-border p-5 hover:border-primary/30 transition-all deal-card-shadow group cursor-default"
               >
                 {/* Header */}
                 <div className="flex items-start gap-3 mb-4">
@@ -226,7 +294,12 @@ export default function AccountsGrid() {
                     {account.name[0].toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-sm group-hover:text-primary transition-colors">{account.name}</p>
+                    <button
+                      className="font-semibold text-sm group-hover:text-primary transition-colors text-left hover:underline"
+                      onClick={() => setContactsAccountId(account.id)}
+                    >
+                      {account.name}
+                    </button>
                     {account.website && (
                       <div className="flex items-center gap-1 mt-0.5">
                         <Globe className="w-3 h-3 text-muted-foreground/60" />
@@ -269,10 +342,13 @@ export default function AccountsGrid() {
                     <p className="text-xs text-muted-foreground mb-0.5">Pipeline</p>
                     <p className="text-sm font-bold">{formatCurrency(totalValue)}</p>
                   </div>
-                  <div>
+                  <button
+                    className="text-left hover:text-primary transition-colors"
+                    onClick={() => setContactsAccountId(account.id)}
+                  >
                     <p className="text-xs text-muted-foreground mb-0.5">Contacts</p>
                     <p className="text-sm font-bold">{contactCount}</p>
-                  </div>
+                  </button>
                   <div>
                     <p className="text-xs text-muted-foreground mb-0.5">Deals</p>
                     <p className="text-sm font-bold">{dealCount}</p>
@@ -317,6 +393,13 @@ export default function AccountsGrid() {
         name={deleteAccount?.name ?? ''}
         deleting={deleteMut.isPending}
       />
+
+      {contactsAccountId && (
+        <AccountContactsDialog
+          accountId={contactsAccountId}
+          onClose={() => setContactsAccountId(null)}
+        />
+      )}
     </div>
   )
 }

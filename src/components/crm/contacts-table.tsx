@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useContacts, useCreateContact, useUpdateContact, useDeleteContact } from '@/hooks/use-crm'
+import { useContacts, useCreateContact, useUpdateContact, useDeleteContact, useAccounts } from '@/hooks/use-crm'
 import { getInitials, formatRelative, cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 
@@ -31,9 +31,10 @@ type ContactForm = {
   phone: string
   title: string
   status: string
+  accountId: string
 }
 
-const emptyForm: ContactForm = { firstName: '', lastName: '', email: '', phone: '', title: '', status: 'LEAD' }
+const emptyForm: ContactForm = { firstName: '', lastName: '', email: '', phone: '', title: '', status: 'LEAD', accountId: '' }
 
 function ContactDialog({
   open, onClose, initial, onSave, title, saving,
@@ -47,6 +48,9 @@ function ContactDialog({
 }) {
   const [form, setForm] = useState<ContactForm>(initial)
   useEffect(() => { setForm(initial) }, [initial, open])
+
+  const { data: accountsData = [] } = useAccounts()
+  const accounts: any[] = Array.isArray(accountsData) ? accountsData : []
 
   const set = (field: keyof ContactForm, val: string) => setForm(p => ({ ...p, [field]: val }))
 
@@ -76,6 +80,20 @@ function ContactDialog({
           <div className="space-y-1">
             <Label>Title</Label>
             <Input value={form.title} onChange={e => set('title', e.target.value)} placeholder="CEO" />
+          </div>
+          <div className="space-y-1 col-span-2">
+            <Label>Account</Label>
+            <Select value={form.accountId || 'none'} onValueChange={val => set('accountId', val === 'none' ? '' : val)}>
+              <SelectTrigger>
+                <SelectValue placeholder="No account" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No account</SelectItem>
+                {accounts.map((a: any) => (
+                  <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1 col-span-2">
             <Label>Status</Label>
@@ -153,7 +171,9 @@ export default function ContactsTable() {
 
   const handleCreate = useCallback(async (form: ContactForm) => {
     try {
-      await createMut.mutateAsync(form)
+      const data: any = { ...form }
+      if (!data.accountId) delete data.accountId
+      await createMut.mutateAsync(data)
       setCreateOpen(false)
       toast({ title: 'Contact created' })
     } catch {
@@ -164,7 +184,8 @@ export default function ContactsTable() {
   const handleEdit = useCallback(async (form: ContactForm) => {
     if (!editContact) return
     try {
-      await updateMut.mutateAsync({ id: editContact.id, data: form })
+      const data: any = { ...form, accountId: form.accountId || null }
+      await updateMut.mutateAsync({ id: editContact.id, data })
       setEditContact(null)
       toast({ title: 'Contact updated' })
     } catch {
@@ -319,6 +340,7 @@ export default function ContactsTable() {
           phone: editContact.phone ?? '',
           title: editContact.title ?? '',
           status: editContact.status,
+          accountId: editContact.accountId ?? '',
         } : emptyForm}
         onSave={handleEdit}
         title="Edit Contact"

@@ -154,6 +154,15 @@ export function useDeleteContact() {
 }
 
 // ── Accounts ──────────────────────────────────────────────────
+export function useAccount(id: string | null) {
+  return useQuery({
+    queryKey: ['accounts', id],
+    queryFn: () => fetch(`/api/accounts/${id}`).then(r => r.json()),
+    enabled: !!id,
+    ...QUERY_DEFAULTS,
+  })
+}
+
 export function useAccounts(params?: { search?: string }) {
   const cleaned: Record<string, string> = {}
   if (params?.search) cleaned.search = params.search
